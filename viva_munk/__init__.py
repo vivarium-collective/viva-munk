@@ -46,7 +46,20 @@ def _patch_composite_realize_on_sentinels():
     run `core.realize` (which follows `Link`/process specs and creates
     instances via `realize_link`) before `find_instance_paths` scans
     state for them.
+
+    NOTE: obsolete on process-bigraph cores that have
+    ``Composite._realize_structural_subtrees`` — that method realizes ONLY
+    the newly-added subtree on ``_add``/``_divide`` (O(1) per division),
+    invoked directly from ``core.apply_updates``. On such a core the
+    whole-tree ``core.realize`` below is redundant AND O(N) per division —
+    O(N^2) over a growing colony, re-walking the entire nested schema
+    through plum-dispatched ``infer``/``discover`` every division (the
+    viva-munk per-tick blowup: ``test_grow_divide`` ran >18 min; skipping
+    it = 9.5 s). So skip the patch there; keep it only for older cores.
     """
+    if hasattr(Composite, '_realize_structural_subtrees'):
+        return
+
     _original_apply_updates = Composite.apply_updates
 
     def apply_updates_with_realize(self, updates):
