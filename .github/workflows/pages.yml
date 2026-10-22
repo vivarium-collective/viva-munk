@@ -48,7 +48,7 @@ jobs:
         # publisher/renderer (--reinstall-package: main's version string can
         # match the synced wheel, skipping a plain install).
         run: |
-          uv venv
+          uv venv --clear
           uv pip install -e .
           uv pip install --reinstall-package vivarium-workbench \
             "vivarium-workbench @ git+https://github.com/vivarium-collective/vivarium-workbench.git@main"
