@@ -15,3 +15,6 @@ venv/
 /reports/
 /scripts/
 /studies/*/runs.db
+
+# Read-only dashboard snapshot is built in CI (pages.yml), not committed
+doc/dashboard/
