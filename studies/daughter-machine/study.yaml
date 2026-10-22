@@ -48,23 +48,19 @@ visualizations:
   - name: multibody
     path: viz/multibody.html
 
-baseline:
-  - name: baseline
-    composite: viva_munk.composites.daughter_machine
-    params: {}
-
-variants:
-  - name: reference
-    base_composite: baseline
-    parameter_overrides: {}
-    description: "Published demo defaults (baseline parameters)."
-
-# Build tab: baseline composite + (no) perturbations.
 conditions:
   baseline:
     composite: viva_munk.composites.daughter_machine
     params: {}
-  variants: []
+  variants:
+    - name: reference
+      base_composite: baseline
+      description: "Published demo defaults (baseline parameters)."
+
+# Build tab: baseline composite + (no) perturbations.
+      params: {}
+      composite: viva_munk.composites.daughter_machine
+  model_settings: []
 
 # Simulations tab: the completed baseline run.
 simulation_set:
