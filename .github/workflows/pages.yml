@@ -1,10 +1,22 @@
 name: Deploy Reports to GitHub Pages
 
+# Builds the read-only workbench dashboard from the workspace with the CURRENT
+# vivarium-workbench (so the published snapshot always carries the latest
+# renderer), then deploys doc/ (the committed study gifs + landing page + the
+# freshly built dashboard/) to GitHub Pages.
+
 on:
   push:
     branches: [main]
     paths:
       - 'doc/**'
+      - 'studies/**'
+      - 'viva_munk/**'
+      - 'workspace.yaml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
 
 permissions:
   pages: write
@@ -22,6 +34,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install graphviz (composite rendering)
+        run: sudo apt-get update && sudo apt-get install -y graphviz
+
+      - name: Set up uv and Python
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install workspace + current vivarium-workbench
+        # Force vivarium-workbench@main so the snapshot ships the current
+        # publisher/renderer (--reinstall-package: main's version string can
+        # match the synced wheel, skipping a plain install).
+        run: |
+          uv venv
+          uv pip install -e .
+          uv pip install --reinstall-package vivarium-workbench \
+            "vivarium-workbench @ git+https://github.com/vivarium-collective/vivarium-workbench.git@main"
+
+      - name: Build the read-only dashboard snapshot
+        # --base-path is the LOWERCASE GitHub Pages path. GitHub Pages serves a
+        # project site at a lowercased repo path (/viva-munk/), so an uppercase
+        # base-path would 404 every asset — keep this lowercase regardless of
+        # the repo name's case.
+        run: |
+          source .venv/bin/activate
+          vivarium-workbench-publish --workspace . --out doc/dashboard \
+            --base-path /viva-munk/dashboard --interactive-url ""
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
