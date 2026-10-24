@@ -60,8 +60,13 @@ jobs:
         # the repo name's case.
         run: |
           source .venv/bin/activate
-          vivarium-workbench-publish --workspace . --out doc/dashboard \
-            --base-path /viva-munk/dashboard --interactive-url ""
+          # Publish at /workbench/ (the gen-readme badge + link point there);
+          # the old /dashboard/ path became a 404. Keep a /dashboard/ redirect.
+          vivarium-workbench-publish --workspace . --out doc/workbench \
+            --base-path /viva-munk/workbench --interactive-url ""
+          rm -rf doc/dashboard
+          mkdir -p doc/dashboard
+          printf '<!doctype html><meta http-equiv="refresh" content="0; url=../workbench/">\n' > doc/dashboard/index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
