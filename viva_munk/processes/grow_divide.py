@@ -550,4 +550,17 @@ AdderGrowDivide.contract = {'summary': 'Adder-model growth & division (Taheri-Ar
                       '(rad), velocity (µm/s).'},
  'outputs': {'agents': 'Cells growing at alpha_mean_per_h (1/h); divide after adding delta_mean '
                        '(µm), with CV noise. Nutrient-limited via Monod (nutrient µM, Km µM).'},
+ 'math': [r'\frac{dL}{dt} = \alpha\, L \quad\Longrightarrow\quad L(t+\Delta t) = L(t)\, e^{\alpha\,\Delta t}',
+          r'\text{divide when}\quad L - L_{birth} \ge \Delta',
+          r'\alpha = \alpha_0\, e^{-P/k_P}\, \frac{S}{K_m + S}'],
+ 'symbols': {'L': 'cell length (µm); mass scales with length so dV/dt = α V too',
+             'L_{birth}': 'length at the start of the current division cycle (µm)',
+             r'\Delta': 'added-length increment target per cycle (delta_mean, µm); birth-size-independent',
+             r'\alpha': 'per-cell exponential growth rate (1/s), sampled log-normally from alpha_mean_per_h',
+             r'\alpha_0': 'baseline growth rate before pressure/nutrient modulation (1/s)',
+             'P': 'mechanical pressure on the cell',
+             'k_P': 'pressure sensitivity constant (pressure_k)',
+             'S': 'local nutrient concentration (µM)',
+             'K_m': 'Monod half-saturation constant (nutrient_km, µM)',
+             r'\Delta t': 'update interval (s)'},
  'assumptions': ["Added size per cycle (delta) is birth-size-independent (the 'adder' principle)."]}

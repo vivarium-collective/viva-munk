@@ -329,6 +329,35 @@ class MultibodyVizStep(Visualization):
         )
 
 
+# --- workbench loom contract (per-port meanings + rendered geometry) ---
+MultibodyVizStep.contract = {
+    'summary': 'Visualization Step — renders the colony as an animated GIF. Buffers one frame per '
+               'tick from the cell/particle poses (optionally over a scalar field heatmap) and '
+               'encodes them once at end-of-run into an inline data-URI GIF.',
+    'inputs': {'cells': 'Cells to draw — per cell: location (µm), length (µm), radius (µm), angle '
+                        '(rad), plus optional scalar (pressure / qs_state / inclusion_body) used '
+                        'for color.',
+               'particles': 'Circular particles (e.g. EPS) — location (µm), radius (µm).',
+               'fields': 'Optional 2D scalar field (concentration grid) drawn as the background '
+                         'heatmap.',
+               'time': 'Simulation time stamped on each frame (s).'},
+    'outputs': {'html': 'A single HTML <img> string with a base64 animated-GIF data URI of the '
+                        'whole run.'},
+    'math': [r'(u, v) = \big((x - x_0)\, s,\; (y - y_0)\, s\big)'],
+    'symbols': {'(x, y)': 'agent center in world coordinates (µm)',
+                'L': 'cell length (µm) — drawn as a capsule of this length',
+                'r': 'cell / particle radius (µm) — capsule half-width',
+                r'\theta': 'cell orientation angle (rad)',
+                '(u, v)': 'pixel coordinates in the rendered frame',
+                '(x_0, y_0)': 'world-space origin of the view (µm)',
+                's': 'world→pixel scale (px per µm)',
+                'C(x, y)': 'background scalar field value mapped through the colormap'},
+    'assumptions': ['Pure rendering — reads state via wires and emits HTML; no state mutation. '
+                    'Color mode (uniform / pressure / qs_state / inclusion_body) and the field '
+                    'overlay are config flags.'],
+}
+
+
 # ---------------------------------------------------------------- composite helpers
 
 

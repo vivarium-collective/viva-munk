@@ -1197,6 +1197,21 @@ PymunkProcess.contract = {'summary': '2D rigid-body physics for the colony — s
                               'advanced by forces + collisions.',
              'bending_cells': 'Bending cells after one physics step (segment poses updated).',
              'circle_particles': 'Particles after one physics step.'},
+ 'math': [r'F = m\,a',
+          r'\Delta t_{sub} = \Delta t / N, \qquad x \leftarrow x + v\,\Delta t_{sub}',
+          r'v(t+\Delta t) = d^{\,\Delta t}\, v(t)',
+          r'\text{collision: push bodies apart along } \hat{n} \text{ by the penetration depth } \delta'],
+ 'symbols': {'F': 'net force on a body (collisions + jitter + optional gravity/adhesion)',
+             'm': 'body mass (pg)',
+             'a': 'acceleration',
+             'v': 'body velocity (µm/s)',
+             'x': 'body position (µm)',
+             'd': 'fraction of velocity retained per second (damping_per_second)',
+             r'\delta': 'overlap / penetration depth between two colliding bodies (µm)',
+             r'\hat{n}': 'contact normal (unit vector) along which overlap is resolved',
+             'N': 'physics sub-steps per update (substeps)',
+             r'\Delta t': 'update interval (s)',
+             r'\Delta t_{sub}': 'sub-step timestep, Δt / N (s)'},
  'assumptions': ['Overdamped motion (velocity damping/s, gravity off by default); `substeps` '
                  'sub-steps per update; rectangular chamber of side env_size (µm) with walls of '
                  'wall_thickness (µm).']}
