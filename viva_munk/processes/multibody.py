@@ -98,6 +98,12 @@ class PymunkProcess(Process):
         'brownian': {'_type': 'boolean', '_default': False},
         'temperature': {'_type': 'float', '_default': 300.0},    # K
         'viscosity': {'_type': 'float', '_default': 1e-3},       # Pa·s (water ~1e-3)
+        # Calibration scales on the Stokes drag (γ): >1 slows motion. The
+        # geometry-derived slender-body drag is unreliable at a bacterium's low
+        # aspect ratio, so these let a study fit D_t/D_r to single-cell tracking
+        # (D scales as 1/scale). Default 1.0 = pure geometry-derived drag.
+        'translational_drag_scale': {'_type': 'float', '_default': 1.0},
+        'rotational_drag_scale': {'_type': 'float', '_default': 1.0},
         # Bending cell options
         'n_bending_segments': {'_type': 'integer', '_default': 4},   # sub-segments per bending cell
         'bending_stiffness':  {'_type': 'float',   '_default': 100.0},  # rotary spring stiffness
@@ -123,6 +129,8 @@ class PymunkProcess(Process):
         self.brownian = bool(self.config.get('brownian', False))
         self.temperature = float(self.config.get('temperature', 300.0))
         self.viscosity = float(self.config.get('viscosity', 1e-3))
+        self.translational_drag_scale = float(self.config.get('translational_drag_scale', 1.0))
+        self.rotational_drag_scale = float(self.config.get('rotational_drag_scale', 1.0))
 
         self.agents = {}
 
@@ -451,6 +459,9 @@ class PymunkProcess(Process):
             lnp = math.log(p)
             gamma_t = 3.0 * math.pi * eta * L / max(lnp + 0.312, 0.4)
             gamma_r = math.pi * eta * L ** 3 / (3.0 * max(lnp - 0.662, 0.4))
+        # Calibration scales on the drag (D = kT/γ, so D scales as 1/scale).
+        gamma_t *= self.translational_drag_scale
+        gamma_r *= self.rotational_drag_scale
         d_t = kT / gamma_t * 1e12                        # m²/s -> µm²/s
         d_r = kT / gamma_r                               # rad²/s
         return d_t, d_r

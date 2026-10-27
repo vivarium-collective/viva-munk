@@ -72,3 +72,25 @@ def test_larger_cells_diffuse_slower():
 
 def test_default_is_inertial_backcompat():
     assert PymunkProcess.config_schema['brownian']['_default'] is False
+
+
+def test_drag_scale_calibrates_diffusion():
+    """The calibration knobs scale diffusion as 1/scale, independently for
+    translation and rotation (rotational_drag_scale ~4 brings a 2µm×0.5µm cell's
+    D_r into the passive E. coli band ~0.05 rad²/s)."""
+    core = core_import()
+    base = PymunkProcess({'env_size': 50, 'brownian': True}, core=core)
+    d_t0, d_r0 = base._brownian_diffusion(0.5, 2.0)
+
+    rot = PymunkProcess({'env_size': 50, 'brownian': True,
+                         'rotational_drag_scale': 4.0}, core=core)
+    d_t_r, d_r_r = rot._brownian_diffusion(0.5, 2.0)
+    assert abs(d_t_r - d_t0) < 1e-9                 # translation unchanged
+    assert abs(d_r_r - d_r0 / 4.0) < 1e-6           # rotation scaled 1/4
+    assert 0.03 <= d_r_r <= 0.06                    # in the passive band
+
+    trans = PymunkProcess({'env_size': 50, 'brownian': True,
+                           'translational_drag_scale': 2.0}, core=core)
+    d_t_t, d_r_t = trans._brownian_diffusion(0.5, 2.0)
+    assert abs(d_t_t - d_t0 / 2.0) < 1e-6           # translation scaled 1/2
+    assert abs(d_r_t - d_r0) < 1e-9                 # rotation unchanged
