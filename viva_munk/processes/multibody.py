@@ -85,6 +85,25 @@ class PymunkProcess(Process):
         'friction': {'_type': 'float', '_default': 0.8},
         'elasticity': {'_type': 'float', '_default': 0.0},
         'jitter_per_second': {'_type': 'float', '_default': 1e-4},  # (impulse std)
+        # Overdamped Brownian (low-Reynolds) dynamics. At the bacterial scale
+        # inertia is negligible (Re ~ 1e-5): motion is force-balanced against
+        # viscous (Stokes) drag, with thermal fluctuations in BOTH translation
+        # and rotation. When True, each cell integrates overdamped Langevin
+        # dynamics (no momentum, so no unnatural coasting) and its thermal
+        # jitter magnitude is derived from temperature, viscosity and the cell's
+        # own geometry via the fluctuation-dissipation (Einstein) relation —
+        # ``jitter_per_second``/``damping_per_second`` are then unused. Intended
+        # for passive cells (colonies); motile/chemotaxis cells use the default
+        # inertial integrator.
+        'brownian': {'_type': 'boolean', '_default': False},
+        'temperature': {'_type': 'float', '_default': 300.0},    # K
+        'viscosity': {'_type': 'float', '_default': 1e-3},       # Pa·s (water ~1e-3)
+        # Calibration scales on the Stokes drag (γ): >1 slows motion. The
+        # geometry-derived slender-body drag is unreliable at a bacterium's low
+        # aspect ratio, so these let a study fit D_t/D_r to single-cell tracking
+        # (D scales as 1/scale). Default 1.0 = pure geometry-derived drag.
+        'translational_drag_scale': {'_type': 'float', '_default': 1.0},
+        'rotational_drag_scale': {'_type': 'float', '_default': 1.0},
         # Bending cell options
         'n_bending_segments': {'_type': 'integer', '_default': 4},   # sub-segments per bending cell
         'bending_stiffness':  {'_type': 'float',   '_default': 100.0},  # rotary spring stiffness
@@ -107,6 +126,11 @@ class PymunkProcess(Process):
         self.substeps = int(self.config.get('substeps', 100))
         self.damping_per_second = float(self.config.get('damping_per_second', 0.98))
         self.jitter_per_second = float(self.config.get('jitter_per_second', 1e-2))
+        self.brownian = bool(self.config.get('brownian', False))
+        self.temperature = float(self.config.get('temperature', 300.0))
+        self.viscosity = float(self.config.get('viscosity', 1e-3))
+        self.translational_drag_scale = float(self.config.get('translational_drag_scale', 1.0))
+        self.rotational_drag_scale = float(self.config.get('rotational_drag_scale', 1.0))
 
         self.agents = {}
 
@@ -225,6 +249,13 @@ class PymunkProcess(Process):
         # Skip jitter entirely if sigma is below numerical noise floor
         apply_jitter = sigma > 1e-12
 
+        # Overdamped Brownian mode: thermal motion (translation + rotation) is
+        # carried by a per-body velocity_func sized to each cell's geometry, so
+        # the impulse jitter and velocity damping below are both disabled.
+        if self.brownian:
+            apply_jitter = False
+            self._apply_brownian()
+
         adhesion_enabled = bool(self.config.get('adhesion_enabled', False))
         # Particles get a fraction of the cell jitter (so they drift but don't jitter wildly)
         particle_jitter_fraction = float(self.config.get('particle_jitter_fraction', 0.2))
@@ -254,7 +285,9 @@ class PymunkProcess(Process):
             )
         ]
         for _ in range(n_steps):
-            self.space.damping = d_step
+            # In Brownian mode each body's velocity_func fully determines its
+            # velocity, so space.damping is a no-op (left at 1.0).
+            self.space.damping = 1.0 if self.brownian else d_step
             if apply_jitter:
                 for body in self.space.bodies:
                     if id(body) in particle_body_ids:
@@ -403,6 +436,71 @@ class PymunkProcess(Process):
         fx = random.gauss(0.0, sigma)
         fy = random.gauss(0.0, sigma)
         body.apply_impulse_at_local_point((fx, fy), (0.0, 0.0))
+
+    # --- overdamped Brownian (low-Reynolds) dynamics ------------------------
+    _KB = 1.380649e-23  # Boltzmann constant, J/K
+
+    def _brownian_diffusion(self, radius, length):
+        """Translational (µm²/s) and rotational (rad²/s) diffusion for a
+        rod-like cell of cross-section ``radius`` and tip-to-tip ``length``
+        (both µm) in a Newtonian fluid, from Stokes drag + the Einstein
+        relation D = kT/γ. Slender-body drag (Tirado–García de la Torre, the
+        ln-corrected cylinder) for aspect ratio p>1.2; a sphere otherwise. The
+        ln denominators are floored so near-spherical cells stay finite."""
+        kT = self._KB * self.temperature                 # J
+        eta = self.viscosity                             # Pa·s
+        r = max(float(radius), 1e-3) * 1e-6              # µm -> m
+        L = max(float(length), 2.0 * float(radius)) * 1e-6
+        p = L / (2.0 * r)                                # aspect ratio >= 1
+        if p <= 1.2:                                     # ~spherical
+            gamma_t = 6.0 * math.pi * eta * r
+            gamma_r = 8.0 * math.pi * eta * r ** 3
+        else:                                            # slender rod
+            lnp = math.log(p)
+            gamma_t = 3.0 * math.pi * eta * L / max(lnp + 0.312, 0.4)
+            gamma_r = math.pi * eta * L ** 3 / (3.0 * max(lnp - 0.662, 0.4))
+        # Calibration scales on the drag (D = kT/γ, so D scales as 1/scale).
+        gamma_t *= self.translational_drag_scale
+        gamma_r *= self.rotational_drag_scale
+        d_t = kT / gamma_t * 1e12                        # m²/s -> µm²/s
+        d_r = kT / gamma_r                               # rad²/s
+        return d_t, d_r
+
+    @staticmethod
+    def _make_overdamped_velocity_func(d_t, d_r):
+        """A pymunk ``velocity_func`` implementing overdamped Langevin motion:
+        each substep the velocity is set purely from a thermal kick (no inertia,
+        so no momentum is carried between substeps and cells never coast). The
+        kick std is √(2D/dt) so a step's displacement has the Einstein variance
+        2D·dt in translation and 2D_r·dt in rotation. Collision impulses applied
+        by the solver this substep still separate overlaps; they are overwritten
+        next substep, which is exactly the overdamped limit."""
+        s_t = math.sqrt(2.0 * max(d_t, 0.0))
+        s_r = math.sqrt(2.0 * max(d_r, 0.0))
+
+        def velocity_func(body, gravity, damping, dt):
+            if dt <= 0.0:
+                return
+            inv = 1.0 / math.sqrt(dt)
+            body.velocity = (random.gauss(0.0, s_t * inv),
+                             random.gauss(0.0, s_t * inv))
+            body.angular_velocity = random.gauss(0.0, s_r * inv)
+
+        return velocity_func
+
+    def _apply_brownian(self):
+        """Assign each rigid cell an overdamped velocity_func sized to its own
+        geometry (recomputed each tick so growth changes the diffusion). Called
+        in place of translational impulse jitter + velocity damping."""
+        for agent in self.agents.values():
+            if agent.get('kind') != 'rigid':
+                continue  # compound/bending bodies keep the default integrator
+            body = agent.get('body')
+            if body is None:
+                continue
+            d_t, d_r = self._brownian_diffusion(
+                agent.get('radius', 0.5), agent.get('length', 0.0) or 0.0)
+            body.velocity_func = self._make_overdamped_velocity_func(d_t, d_r)
 
     def _apply_adhesion(self):
         """Pin eligible bodies to the adhesion surface or to other attached bodies.
