@@ -29,8 +29,10 @@ dependencies = [
     "matplotlib",
     "Pillow",
     "plum-dispatch",
-    # viva_munk/visualizations/* subclass pbg_superpowers.visualization.Visualization.
-    "pbg-superpowers",
+    # viva_munk/visualizations/* subclass viva_superpowers.visualization.Visualization.
+    # (pbg-superpowers is now a deprecated PyPI shim that just re-exports an older
+    # viva-superpowers; depend on the current package directly.)
+    "viva-superpowers",
     # viva_munk/__init__.py imports SQLiteEmitter from process_bigraph.emitter at
     # module load; SQLiteEmitter was extracted to the focused `viva-emitters`
     # package and is only lazily re-exported there, so a standalone
