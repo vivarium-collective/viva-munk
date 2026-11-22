@@ -146,7 +146,7 @@ own. All nine studies re-run end-to-end on the current process-bigraph / vivariu
 | [quorum-sensing](studies/quorum-sensing/) | Density-dependent autoinducer signaling: cells switch ON above a local threshold. |
 
 Studies are managed with the [viva-superpowers](https://github.com/vivarium-collective/viva-superpowers)
-`/viva-*` skills (`/viva-workbench`, `/viva-investigation`, `/viva-study`, `/viva-report`). The
+`/viva-*` skills (`/viva:workbench`, `/viva:investigate`, `/viva:study`, `/viva:report`). The
 verdict is honest about scope: all nine reproduce their published panel **qualitatively**;
 quantitative calibration and pass/fail behavior tests are tracked as follow-ups in the
 investigation.
