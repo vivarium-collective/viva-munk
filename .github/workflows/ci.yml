@@ -1,0 +1,40 @@
+name: CI
+
+# Test CI for the viva-munk simulator. Six repos depend on viva-munk @ git main
+# and import viva_munk (sms-ecoli, v2ecoli, viva-tumor-tcell, mosaic-compose,
+# viva-multicell-blueprint, viva-casebook), so a broken main breaks them — this
+# gate catches it on every push/PR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.12
+      - name: Install (compute core + dev)
+        run: |
+          uv venv --python 3.12
+          uv pip install ".[dev]"
+      - name: import viva_munk pulls zero framework
+        run: |
+          uv run python - <<'PY'
+          import viva_munk  # noqa
+          import sys
+          leaked = [n for n in sys.modules
+                    if n.split('.')[0] in {"vivarium_workbench", "discovery_engine", "viva_superpowers"}]
+          assert not leaked, f"framework leaked into core import: {leaked}"
+          print("core import clean")
+          PY
+      - name: Run tests
+        run: uv run pytest -q tests viva_munk/experiments/test_suite.py
