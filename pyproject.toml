@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "viva-munk"
-version = "0.0.8"
-description = "multi-cell simulations with pymunk 2d physics"
+version = "0.1.0"
+description = "viva-munk — multi-cell simulations with pymunk 2D physics: process-bigraph processes, composites, and visualizations (the simulator). Studies/investigations live in viva-munk-studies, which pins this package per study."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -29,10 +29,6 @@ dependencies = [
     "matplotlib",
     "Pillow",
     "plum-dispatch",
-    # viva_munk/visualizations/* subclass viva_superpowers.visualization.Visualization.
-    # (pbg-superpowers is now a deprecated PyPI shim that just re-exports an older
-    # viva-superpowers; depend on the current package directly.)
-    "viva-superpowers",
     # viva_munk/__init__.py imports SQLiteEmitter from process_bigraph.emitter at
     # module load; SQLiteEmitter was extracted to the focused `viva-emitters`
     # package and is only lazily re-exported there, so a standalone
@@ -51,29 +47,16 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/vivarium-collective/Viva-munk"
-Repository = "https://github.com/vivarium-collective/Viva-munk"
+Homepage = "https://github.com/vivarium-collective/viva-munk"
+Repository = "https://github.com/vivarium-collective/viva-munk"
 
-# Build with hatchling so the wheel can force-include this module's workspace
-# content. `packages = ["viva_munk"]` ships the ENTIRE viva_munk/ tree — every
-# subpackage, including composites/ and visualizations/ (the package's __init__
-# imports them; the old setuptools hand-list once dropped them). No exclude list
-# to maintain.
+# `packages = ["viva_munk"]` ships the ENTIRE viva_munk/ tree — every subpackage,
+# including composites/ and visualizations/ (the package's __init__ imports them).
+# No force-include: the workspace content (workspace.yaml, studies/,
+# investigations/) now lives in the viva-munk-studies repo, not here. This repo is
+# the SIMULATOR; downstream consumers that `import viva_munk` are unaffected.
 [tool.hatch.build.targets.wheel]
 packages = ["viva_munk"]
-
-# Ship the module's workspace content INSIDE the installed package, so a
-# wheel/PyPI install exposes its studies + composite-gallery investigation
-# read-only in the vivarium-workbench (via lib/federation.linked_workspaces'
-# installed-module discovery). Without this a wheel surfaces only the composites
-# and the studies list-but-fail-to-open ("Study not found"). workspace.yaml lands
-# at viva_munk/workspace.yaml (the federation root); studies/ and investigations/
-# are its default-layout subdirs. Only tracked content ships (~38 MB, the
-# interactive multibody viz) — the gitignored run stores (runs.db, sims/) do not.
-[tool.hatch.build.targets.wheel.force-include]
-"workspace.yaml" = "viva_munk/workspace.yaml"
-"studies" = "viva_munk/studies"
-"investigations" = "viva_munk/investigations"
 
 # NOTE: this package previously declared a [tool.uv.sources] override
 # pointing process-bigraph at `../process-bigraph` (editable). That
