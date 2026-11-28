@@ -724,6 +724,50 @@ class PymunkProcess(Process):
         if 'motile_speed' in attrs and attrs['motile_speed'] is not None:
             agent['motile_speed'] = float(attrs['motile_speed'])
 
+    # ------------------------------------------------------------------
+    # Raw pymunk body construction — the single home for the
+    # Body/Circle/Segment/moment_for_* calls. Exposed as overridable
+    # staticmethods so subclasses and sibling wrappers (e.g. spatio-flux's
+    # particle process) reuse the engine's body construction instead of
+    # re-vendoring pymunk directly.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def build_circle_body(mass, radius, position=(0.0, 0.0), velocity=(0.0, 0.0),
+                          elasticity=0.0, friction=0.0):
+        """Build a dynamic circular (body, shape) pair."""
+        inertia = pymunk.moment_for_circle(mass, 0, radius)
+        body = pymunk.Body(mass, inertia)
+        body.position = position
+        body.velocity = velocity
+        shape = pymunk.Circle(body, radius)
+        shape.elasticity = elasticity
+        shape.friction = friction
+        return body, shape
+
+    @staticmethod
+    def build_segment_body(mass, length, radius, position=(0.0, 0.0),
+                           velocity=(0.0, 0.0), angle=0.0,
+                           elasticity=0.0, friction=0.0):
+        """Build a dynamic capsule/segment (body, shape) pair.
+
+        Local endpoints lie on the x-axis; ``body.angle`` carries world rotation.
+        ``body.length``/``body.width`` are stashed for downstream geometry reads.
+        """
+        start = (-length / 2, 0)
+        end = (length / 2, 0)
+        inertia = pymunk.moment_for_segment(mass, start, end, radius)
+        body = pymunk.Body(mass, inertia)
+        body.position = position
+        body.velocity = velocity
+        body.angle = angle
+        body.length = length
+        body.width = radius * 2
+        shape = pymunk.Segment(body, start, end, radius)
+        shape.elasticity = elasticity
+        shape.friction = friction
+        return body, shape
+
     def create_new_object(self, agent_id, attrs, kind='rigid'):
         if kind == 'bending':
             self._create_bending(agent_id, attrs)
@@ -733,35 +777,24 @@ class PymunkProcess(Process):
         mass = float(attrs.get('mass', 1.0))
         vx, vy = attrs.get('velocity', (0.0, 0.0))
         pos = attrs.get('location', (0.0, 0.0))
+        elasticity = attrs.get('elasticity', self.config['elasticity'])
+        friction = attrs.get('friction', self.config['friction'])
 
         if shape_type == 'circle':
             radius = float(attrs['radius'])
-            inertia = pymunk.moment_for_circle(mass, 0, radius)
-            body = pymunk.Body(mass, inertia)
-            body.position = pos
-            body.velocity = (vx, vy)
-            shape = pymunk.Circle(body, radius)
+            body, shape = self.build_circle_body(
+                mass, radius, pos, (vx, vy), elasticity=elasticity, friction=friction)
             angle = None
             length = None
         elif shape_type == 'segment':
             length = float(attrs['length'])
             radius = float(attrs['radius'])
             angle = float(attrs['angle'])
-            start = (-length / 2, 0)
-            end = (length / 2, 0)
-            inertia = pymunk.moment_for_segment(mass, start, end, radius)
-            body = pymunk.Body(mass, inertia)
-            body.position = pos
-            body.velocity = (vx, vy)
-            body.angle = angle
-            body.length = length
-            body.width = radius * 2
-            shape = pymunk.Segment(body, start, end, radius)
+            body, shape = self.build_segment_body(
+                mass, length, radius, pos, (vx, vy), angle,
+                elasticity=elasticity, friction=friction)
         else:
             raise ValueError(f"Unknown shape type: {shape_type}")
-
-        shape.elasticity = attrs.get('elasticity', self.config['elasticity'])
-        shape.friction = attrs.get('friction', self.config['friction'])
 
         self.space.add(body, shape)
         self.agents[agent_id] = {
